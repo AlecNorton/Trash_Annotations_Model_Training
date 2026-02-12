@@ -82,12 +82,13 @@ def evaluate(model, data_loader, device):
     model.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
+    print(len(data_loader.dataset))
     coco = get_coco_api_from_dataset(data_loader.dataset)
-    print("COCO", coco)
+    #print("COCO", coco)
     iou_types = _get_iou_types(model)
-    print("IOU TYPES, ", iou_types)
+    #print("IOU TYPES, ", iou_types)
     coco_evaluator = CocoEvaluator(coco, iou_types)
-    print("COCO EVALUATOR", coco_evaluator)
+    #print("COCO EVALUATOR", coco_evaluator)
     progress = 0
     for images, targets in metric_logger.log_every(data_loader, 100, header):
         progress = progress + 1
@@ -98,12 +99,12 @@ def evaluate(model, data_loader, device):
             torch.cuda.synchronize()
         model_time = time.time()
         outputs = model(images)
-        print("Outputs, ", outputs)
+        #print("Outputs, ", outputs)
         outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
-        print("Outputs new, ", outputs)
+        #print("Outputs new, ", outputs)
         model_time = time.time() - model_time
         res = {target["image_id"]: output for target, output in zip(targets, outputs)}
-        print("Res, ", res)
+        #print("Res, ", res)
         #print("RES", res)
         evaluator_time = time.time()
         coco_evaluator.update(res)
@@ -114,9 +115,10 @@ def evaluate(model, data_loader, device):
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     coco_evaluator.synchronize_between_processes()
-
+    
     # accumulate predictions from all images
     coco_evaluator.accumulate()
+    
     coco_evaluator.summarize()
     torch.set_num_threads(n_threads)
     return coco_evaluator

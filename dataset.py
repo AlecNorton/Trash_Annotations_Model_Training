@@ -8,13 +8,13 @@ import os
 import json
 import numpy as np
 import copy
-import utils
+import taco_utils
 
 from PIL import Image, ExifTags
 
 from pycocotools.coco import COCO
 
-class Taco(utils.Dataset):
+class Taco(taco_utils.Dataset):
 
     def load_taco(self, dataset_dir, round, subset, class_ids=None,
                   class_map=None, return_taco=False, auto_download=False):

@@ -18,7 +18,7 @@ import csv
 import dataset as ds
 from multiprocessing import Process, freeze_support, set_start_method
 import math
-from utils import extract_bboxes
+from taco_utils import extract_bboxes
 #Import Mask R-CNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
@@ -147,19 +147,11 @@ def resize():
     imageCount = 0
     annotationCount = 0
     
-    annotations_file_path = os.path.join(TACO_DIR, 'annotations.json')
-    assert os.path.isfile(annotations_file_path)
-
-    with open(annotations_file_path, 'r') as f:
-        annotations_json = json.loads(f.read())
-    #print(annotations_json.keys())
-    new_annotations = annotations_json.copy()
-    new_annotations['images'].clear()
-    new_annotations['annotations'].clear()
-    new_annotations['scene_annotations'].clear()
+    
+    
     #new_annotations['']
     #print("New annotations: {}".format(new_annotations))
-    
+    new_annotations = {}
     #ITERATE THROUGH
     for ann in taco.dataset['annotations']:
         #If annotation is for background, IGNORE. 
@@ -177,8 +169,8 @@ def resize():
         image_anns = taco.loadAnns(taco.getAnnIds(imageID, taco.getCatIds(), iscrowd=None))
         image = dataset.load_image(imageID)
         orig_height, orig_width, _ = image.shape
-        file_name = "resized/000" + str(imageCount) + ".jpg"
-        path = 'C:/Users/alecr/OneDrive/Documents/GitHub/TACO/data/'+file_name
+        file_name = "resized/images/000" + str(imageCount) + ".jpg"
+        path = 'C:/Users/alecr/OneDrive/Documents/GitHub/Trash_Annotations_Model_Training/data/'+file_name
         
         #TODO:
         if orig_height > orig_width:
@@ -211,9 +203,10 @@ def resize():
         #print("Image saved {}, {}".format(resized_image.shape[0], resized_image.shape[1]))
         cv2.imwrite(path, cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB))
         rowsResize, colsResize, _ = resized_image.shape        
-        new_image = {'id': imageCount, 'width': colsResize, 'height': rowsResize, 'file_name':file_name, 'license':None, 'flicker_url': None, 'coco_url': None, 'data_captured': None, 'flicker_640_url': None}
-        new_annotations['images'].append(new_image)
+        #new_image = {'id': imageCount, 'width': colsResize, 'height': rowsResize, 'file_name':file_name, 'license':None, 'flicker_url': None, 'coco_url': None, 'data_captured': None, 'flicker_640_url': None}
+        #new_annotations['images'].append(new_image)
 
+        new_annotations[imageCount] = []
         #Then add all transformed annotations. 
         for image_ann in image_anns:
             annotationCount = annotationCount + 1
@@ -281,8 +274,8 @@ def resize():
             #print("NEW: " + str(segmentation))
             try:
                 rles = maskUtils.frPyObjects(segmentation, INTEL_SIZE[1], INTEL_SIZE[0])
-                new_ann = {'id': annotationCount, 'image_id': imageCount, 'category_id':categoryID, 'rle': segmentation, 'bbox': new_bbox}
-                new_annotations['annotations'].append(new_ann)
+                new_ann = {'id': annotationCount, 'image_id': imageCount-1, 'category_id':categoryID, 'rle': segmentation, 'bbox': new_bbox}
+                new_annotations[imageCount-1].append(new_ann)
             except:
                 print(segmentation)
             #rle = maskUtils.merge(rles)
@@ -300,7 +293,7 @@ def resize():
 
     json_str = json.dumps(new_annotations, indent=7)
     #print("Json STR: " + str(json_str))
-    with open("C:/Users/alecr/OneDrive/Documents/GitHub/TACO/data/resized/annotations.json", "w") as f:
+    with open("C:/Users/alecr/OneDrive/Documents/GitHub/Trash_Annotations_Model_Training/data/resized/annotations.json", "w") as f:
         f.write(json_str)
 
     
@@ -350,5 +343,5 @@ def resize():
 if __name__ == '__main__':
     freeze_support()
     set_start_method('spawn')
-    p = Process(target =train)
+    p = Process(target =resize)
     p.start()

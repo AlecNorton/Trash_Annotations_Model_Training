@@ -5,9 +5,18 @@ import numpy as np
 import cv2
 import torch
 
+def iou_score(mask1, mask2):
+    print(mask1.shape)
+    print(mask2.shape)
+    intersection = np.logical_and(mask1, mask2).sum()
+    union = np.logical_or(mask1, mask2).sum()
+    iou_score = intersection / (union + 1e-6) #So we don't divide by zero.
+    return iou_score 
+
 def convert_masks(masks, labels, colors, size):
     color_masks = []
     new_labels = []
+    new_masks = []
     combinedMask = None
     for i in range(len(labels)):
         color = np.full((720, 1280, 3), colors[labels[i]])
@@ -15,8 +24,17 @@ def convert_masks(masks, labels, colors, size):
         mask = np.uint8(mask)
         if (np.count_nonzero(mask) < size):
             continue
+        copyFlag = 0
+        for i in range(len(new_masks)):
+            if iou_score(mask, new_masks[i]) > .9:
+                print("Copy cat mask.")
+                copyFlag = 1
+        if copyFlag ==1:
+            continue
+                
         color_masks.append(cv2.bitwise_and(color, color, mask = mask))
         new_labels.append(labels[i])
+        new_masks.append(mask)
 
         if combinedMask is None:
             combinedMask = color_masks[-1]
@@ -42,4 +60,5 @@ def visualize(image, masks, boxes, labels, class_names, scores, colors, score_th
         cv2.putText(image, str(class_names[labels[i]]), (boxes[i][0], boxes[i][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2, cv2.LINE_AA)
     plt.imshow(image)
     plt.show()
-    cv2.waitKey(0)  
+    cv2.waitKey(0)
+    return image

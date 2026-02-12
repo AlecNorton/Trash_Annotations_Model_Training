@@ -11,12 +11,13 @@ import numpy as np
 import argparse
 from multiprocessing import Process, freeze_support, set_start_method
 import matplotlib.pyplot as plt
-from detection.engine import train_one_epoch, evaluate
+from engine import train_one_epoch, evaluate
 from torchvision import tv_tensors
 import json
 import os
 from torchvision.transforms import v2 as T
-
+from torch.utils.tensorboard import SummaryWriter
+import cv2
 INTEL_SIZE = (1280, 720)
 mean = torch.tensor([0.3825, 0.3623, 0.3205])
 std = torch.tensor([0.3010, 0.2854, 0.2710])
@@ -51,14 +52,14 @@ class TACODataset(torch.utils.data.Dataset):
         self.annotations = json.load(open(os.path.join(root, "annotations.json")))
 
     def __getitem__(self, idx):
-        img_id = self.annotations[str(idx)][0]['image_id']
-        img_path = os.path.join(self.root, "images", "000" + str(img_id + 1) + ".jpg")
+        img_id = self.annotations[str(idx+1)][0]['image_id']
+        img_path = os.path.join(self.root, "images", "000" + str(img_id) + ".jpg")
         img = read_image(img_path)
         boxes = []
         labels = []
         masks = []
         numObjs = 0
-        for obj in self.annotations[str(idx)]:
+        for obj in self.annotations[str(idx+1)]:
             numObjs = numObjs + 1
             boxes.append(obj['bbox'])
             segm = obj['rle']
@@ -120,7 +121,23 @@ def target_transform(targets):
 def custom_loader(batch):
     return tuple(zip(*batch))
 
+def class_distribution():
+    dataset = TACODataset('data/resized', get_transform(True))
+    class_labels = torch.zeros(18)
+    t = transforms.ToPILImage()
+    for imgs, targets in dataset:
+        #plt.imshow(t(imgs))
+        #plt.imshow(np.uint8(targets['masks'][0]))
+        #plt.show()
+        #cv2.waitKey()
+        print("Labels: ", targets['labels'])
+        add = np.bincount(targets['labels'])
+        print(len(add))
+        add = np.pad(add, (0, 18 - len(add)))
+        class_labels = class_labels + add
+        print("Class_Labels: ", class_labels)
 
+    print(class_labels)
 
 def train(num_epochs, batch_size):
 
@@ -131,7 +148,7 @@ def train(num_epochs, batch_size):
     dataset_test = TACODataset('data/resized', get_transform(False))
     indices = torch.randperm(len(dataset)).tolist()
     dataset = torch.utils.data.Subset(dataset, indices[:-150])
-    test_dataset = torch.utils.data.Subset(dataset_test, indices[-150:])
+    test_dataset = torch.utils.data.Subset(dataset_test, indices[-10:])
     print("Complete dataset load.")
     
     data_loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True, num_workers = 4, collate_fn = custom_loader)
@@ -168,30 +185,41 @@ def train(num_epochs, batch_size):
     #print("DOES THIS WORK?",test_dataset.__getitem__(0))
     print("EPOCHS: " + str(num_epochs))
     print("BATCH_SIZE: " + str(batch_size))
-    lr = []
-    loss = []
-    loss_classifier = []
-    loss_box_reg = []
-    loss_mask = []
-    loss_objectness = []
-    loss_rpn_box_reg = []
+    
+    writer = SummaryWriter()
     
     for epoch in range(num_epochs):
         print("EPOCH: ", epoch)
+        
         metric_logger = train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq = 10)
         
-        lr.append(metric_logger.__getattr__('lr').value)
-        loss.append(metric_logger.__getattr__('loss').value)
-        loss_classifier.append(metric_logger.__getattr__('loss_classifier').value)
-        loss_box_reg.append(metric_logger.__getattr__('loss_box_reg').value)
-        loss_mask.append(metric_logger.__getattr__('loss_mask').value)
-        loss_objectness.append(metric_logger.__getattr__('loss_objectness').value)
-        loss_rpn_box_reg.append(metric_logger.__getattr__('loss_rpn_box_reg').value)
+        writer.add_scalar("Train/LR", metric_logger.__getattr__('lr').median, epoch)
+        writer.add_scalar("Train/Loss", metric_logger.__getattr__('loss').median, epoch)
+        writer.add_scalar("Train/Loss_classifier", metric_logger.__getattr__('loss_classifier').median, epoch)
+        writer.add_scalar("Train/Loss_box_reg", metric_logger.__getattr__('loss_box_reg').median, epoch)
+        writer.add_scalar("Train/Loss_mask", metric_logger.__getattr__('loss_mask').median, epoch)
+        writer.add_scalar("Train/Loss_objectness", metric_logger.__getattr__('loss_objectness').median, epoch)
+        writer.add_scalar("Train/Loss_rpn_box_reg", metric_logger.__getattr__('loss_rpn_box_reg').median, epoch)
+        
         #print("METRIC LOG", metric_logger.__str__())
         #print("\nMETIRC LOG", metric_logger.meters)
         #print("METRIC LOG", metric_logger.loss)
+        
         lr_scheduler.step()
-        evaluate(model, data_loader_test, device=device)
+        evaluator = evaluate(model, data_loader_test, device=device)
+        for iou_type, coco_eval in evaluator.coco_eval.items():
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[0])
+            writer.add_scalar("AP/" + str(iou_type)+"/.50_all", coco_eval.stats[1])
+            writer.add_scalar("AP/" + str(iou_type)+"/.75_all", coco_eval.stats[2])
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_small", coco_eval.stats[3])
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[4])
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_large", coco_eval.stats[5])
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[6])
+            writer.add_scalar("AR/" + str(iou_type)+"/.50_all", coco_eval.stats[7])
+            writer.add_scalar("AR/" + str(iou_type)+"/.75_all", coco_eval.stats[8])
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_small", coco_eval.stats[9])
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[10])
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_large", coco_eval.stats[11])
         '''
         data_iter = iter(data_loader)
         for images, targets in data_iter:
@@ -215,7 +243,9 @@ def train(num_epochs, batch_size):
         #print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {losses.item()}')
         epoch_losses.append(losses.item())
         '''
-    
+    writer.flush()
+    writer.close()
+    '''
     torch.save(model.state_dict(), 'models/model_weights' + str(num_epochs) +'_'+str(batch_size)+'.pth')
     plt.figure(1)
     plt.plot(loss)
@@ -266,7 +296,7 @@ def train(num_epochs, batch_size):
     plt.ylabel('Loss RPN Box Reg')
     plt.title('Epochs vs Loss RPN')
     plt.savefig('results/'+str(num_epochs) +'_'+str(batch_size)+'_rpn_box_reg.jpg')
-
+    '''
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -275,6 +305,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     freeze_support()
     set_start_method('spawn')
-    p = Process(target =train(num_epochs = int(args.EPOCHS), batch_size = int(args.BATCH)))
+    p = Process(target = class_distribution)
+    # p = Process(target =train(num_epochs = int(args.EPOCHS), batch_size = int(args.BATCH)))
     p.start()
     print("Finished.")

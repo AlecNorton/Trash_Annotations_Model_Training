@@ -125,9 +125,11 @@ def convert_to_coco_api(ds):
     ann_id = 1
     dataset = {"images": [], "categories": [], "annotations": [], "info": {}}
     categories = set()
+    print(len(ds))
     for img_idx in range(len(ds)):
         # find better way to get target
         # targets = ds.get_annotations(img_idx)
+        print("IDX: ", img_idx)
         img, targets = ds[img_idx]
         image_id = targets["image_id"]
         img_dict = {}
@@ -177,6 +179,7 @@ def get_coco_api_from_dataset(dataset):
         if isinstance(dataset, torchvision.datasets.CocoDetection):
             break
         if isinstance(dataset, torch.utils.data.Subset):
+            #print("No.")
             dataset = dataset.dataset
     if isinstance(dataset, torchvision.datasets.CocoDetection):
         return dataset.coco

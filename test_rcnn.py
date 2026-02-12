@@ -2,7 +2,7 @@ import sys
 import torchvision
 import torchvision.transforms as transforms
 import torch
-from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.models.detection import maskrcnn_resnet50_fpn_v2, maskrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from pycocotools import mask as maskUtils
@@ -17,6 +17,8 @@ import torch.nn.functional as F
 from torchvision.tv_tensors import BoundingBoxes, Mask
 from distinctipy import distinctipy
 import visualize
+import test
+
 
 INTEL_SIZE = (1280, 720)
 mean = torch.tensor([0.3825, 0.3623, 0.3205]) 
@@ -26,14 +28,7 @@ transform = transforms.Compose([
         transforms.ToTensor()])
 
 
-
-def evaluate_coco(model, dataset, coco, eval_type = "segm", limit = 100, image_ids = None):
-    if limit:
-        image_ids
-
-
-
-image = cv2.imread('data/test/007.jpg')
+image = cv2.imread('data/test/004.jpg')
 
 
 orig_height, orig_width, _ = image.shape
@@ -48,7 +43,7 @@ else:
     #print("This occurred")
     scale_factor = INTEL_SIZE[1]/image.shape[0]
 
-    
+
 
 resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_LINEAR)
 #print("New shape: " + str(resized_image.shape))
@@ -65,16 +60,15 @@ if(INTEL_SIZE[0] > resized_image.shape[1] or INTEL_SIZE[1] > resized_image.shape
 else:
     padding_flag = -1
 
+model = test.get_model_instance_segmentation(7)
+#model = maskrcnn_resnet50_fpn_v2(weights = 'DEFAULT')
+#in_features_box = model.roi_heads.box_predictor.cls_score.in_features
+#in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
 
+#dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
 
-model = maskrcnn_resnet50_fpn(weights = 'DEFAULT')                   
-in_features_box = model.roi_heads.box_predictor.cls_score.in_features
-in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
-
-dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
-
-model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
-model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = in_features_mask, dim_reduced = dim_reduced, num_classes = 7)
+#model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
+#model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = 256, dim_reduced=256, num_classes = 7)
 model.load_state_dict(torch.load('models/model_weights_10_10.pth', weights_only=True,  map_location=torch.device('cpu')))
 model.eval()
 
