@@ -52,14 +52,15 @@ class TACODataset(torch.utils.data.Dataset):
         self.annotations = json.load(open(os.path.join(root, "annotations.json")))
 
     def __getitem__(self, idx):
-        img_id = self.annotations[str(idx+1)][0]['image_id']
-        img_path = os.path.join(self.root, "images", "000" + str(img_id) + ".jpg")
+        
+        img_id = self.annotations[str(idx)][0]['image_id']
+        img_path = os.path.join(self.root, "images", "000" + str(img_id+1) + ".jpg")
         img = read_image(img_path)
         boxes = []
         labels = []
         masks = []
         numObjs = 0
-        for obj in self.annotations[str(idx+1)]:
+        for obj in self.annotations[str(idx)]:
             numObjs = numObjs + 1
             boxes.append(obj['bbox'])
             segm = obj['rle']
@@ -84,6 +85,7 @@ class TACODataset(torch.utils.data.Dataset):
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)
+        
         return img, target
     def __len__(self):
         return len(self.imgs)
@@ -123,29 +125,46 @@ def custom_loader(batch):
 
 def class_distribution():
     dataset = TACODataset('data/resized', get_transform(True))
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1, shuffle = True, num_workers = 4, collate_fn = custom_loader)
+
+    count = 0
     class_labels = torch.zeros(18)
     t = transforms.ToPILImage()
-    for imgs, targets in dataset:
+    print("Len, ", len(dataset))
+    count = 0
+    for imgs, targets in data_loader:
+        print(count)
+        count +=1
         #plt.imshow(t(imgs))
         #plt.imshow(np.uint8(targets['masks'][0]))
         #plt.show()
         #cv2.waitKey()
-        print("Labels: ", targets['labels'])
-        add = np.bincount(targets['labels'])
-        print(len(add))
+        #print("Labels: ", targets['labels'])
+        #print(targets)
+        add = np.bincount(targets[0]['labels'])
+        #print(len(add))
         add = np.pad(add, (0, 18 - len(add)))
         class_labels = class_labels + add
-        print("Class_Labels: ", class_labels)
+        #print("Class_Labels: ", class_labels)
+    print("Class labels,", class_labels)
+    
 
-    print(class_labels)
-
-def train(num_epochs, batch_size):
+def train(num_epochs, batch_size, data):
 
     print("\nLoading dataset.\n")
 
+    if(data == 'RRR'):
+        path = 'data/resized'
+        string = 'RRR'
+    elif(data == '17'):
+        path = 'data/resized_17'
+        string = '17'
+    else:
+        raise ValueError("Wrong data submission.")
+
     #dataset = torchvision.datasets.CocoDetection('data', 'data/resized/annotations.json', transform = transform, target_transform = target_transform)
-    dataset = TACODataset('data/resized', get_transform(True))
-    dataset_test = TACODataset('data/resized', get_transform(False))
+    dataset = TACODataset(path, get_transform(True))
+    dataset_test = TACODataset(path, get_transform(False))
     indices = torch.randperm(len(dataset)).tolist()
     dataset = torch.utils.data.Subset(dataset, indices[:-150])
     test_dataset = torch.utils.data.Subset(dataset_test, indices[-10:])
@@ -186,7 +205,7 @@ def train(num_epochs, batch_size):
     print("EPOCHS: " + str(num_epochs))
     print("BATCH_SIZE: " + str(batch_size))
     
-    writer = SummaryWriter()
+    writer = SummaryWriter(log_dir = 'runs/'+str(num_epochs)+'_'+str(batch_size)+'_'+string)
     
     for epoch in range(num_epochs):
         print("EPOCH: ", epoch)
@@ -208,18 +227,18 @@ def train(num_epochs, batch_size):
         lr_scheduler.step()
         evaluator = evaluate(model, data_loader_test, device=device)
         for iou_type, coco_eval in evaluator.coco_eval.items():
-            writer.add_scalar("AP/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[0])
-            writer.add_scalar("AP/" + str(iou_type)+"/.50_all", coco_eval.stats[1])
-            writer.add_scalar("AP/" + str(iou_type)+"/.75_all", coco_eval.stats[2])
-            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_small", coco_eval.stats[3])
-            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[4])
-            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_large", coco_eval.stats[5])
-            writer.add_scalar("AR/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[6])
-            writer.add_scalar("AR/" + str(iou_type)+"/.50_all", coco_eval.stats[7])
-            writer.add_scalar("AR/" + str(iou_type)+"/.75_all", coco_eval.stats[8])
-            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_small", coco_eval.stats[9])
-            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[10])
-            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_large", coco_eval.stats[11])
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[0], epoch)
+            writer.add_scalar("AP/" + str(iou_type)+"/.50_all", coco_eval.stats[1], epoch)
+            writer.add_scalar("AP/" + str(iou_type)+"/.75_all", coco_eval.stats[2], epoch)
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_small", coco_eval.stats[3], epoch)
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[4], epoch)
+            writer.add_scalar("AP/" + str(iou_type)+"/.50-95_large", coco_eval.stats[5], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-.95_all", coco_eval.stats[6], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.50_all", coco_eval.stats[7], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.75_all", coco_eval.stats[8], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_small", coco_eval.stats[9], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[10], epoch)
+            writer.add_scalar("AR/" + str(iou_type)+"/.50-95_large", coco_eval.stats[11], epoch)
         '''
         data_iter = iter(data_loader)
         for images, targets in data_iter:
@@ -302,10 +321,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--EPOCHS', default = 10)
     parser.add_argument('-b', '--BATCH', default = 1)
+    parser.add_argument('-d', '--DATA', default = 'RRR')
     args = parser.parse_args()
     freeze_support()
     set_start_method('spawn')
-    p = Process(target = class_distribution)
-    # p = Process(target =train(num_epochs = int(args.EPOCHS), batch_size = int(args.BATCH)))
+    #p = Process(target = train(num_epochs ))
+    p = Process(target =train(num_epochs = int(args.EPOCHS), batch_size = int(args.BATCH), data = str(args.DATA)))
     p.start()
     print("Finished.")

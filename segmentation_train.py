@@ -7,10 +7,8 @@ import torchvision
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torch.utils.data import DataLoader
 import cv2
-import os
 import json
 from imantics import Mask
-
 from pycocotools.cocoeval import COCOeval
 from torchvision.transforms import functional as F
 from pycocotools import mask as maskUtils
@@ -131,12 +129,12 @@ def train():
 def resize():
     imgs = set()
     class_map = {}
-    with open("C:/Users/alecr/OneDrive/Documents/GitHub/TACO/detector/taco_config/map_RRR.csv") as csvfile:
+    with open("C:/Users/alecr/OneDrive/Documents/GitHub/TACO/detector/taco_config/map_17.csv") as csvfile:
         reader = csv.reader(csvfile)
         class_map = {row[0]:row[1] for row in reader}
 
     TACO_DIR = "C:/Users/alecr/OneDrive/Documents/GitHub/TACO/data/"
-    RESIZE_TACO_DIR = "C:/Users/alecr/OneDrive/Documents/GitHub/TACO/data/annotations_resize"
+    #RESIZE_TACO_DIR = "C:/Users/alecr/OneDrive/Documents/GitHub/TACO/data/annotations_resize"
     round = None
     subset = "train"
     dataset = ds.Taco()
@@ -169,7 +167,7 @@ def resize():
         image_anns = taco.loadAnns(taco.getAnnIds(imageID, taco.getCatIds(), iscrowd=None))
         image = dataset.load_image(imageID)
         orig_height, orig_width, _ = image.shape
-        file_name = "resized/images/000" + str(imageCount) + ".jpg"
+        file_name = "resized_17/images/000" + str(imageCount) + ".jpg"
         path = 'C:/Users/alecr/OneDrive/Documents/GitHub/Trash_Annotations_Model_Training/data/'+file_name
         
         #TODO:
@@ -206,7 +204,7 @@ def resize():
         #new_image = {'id': imageCount, 'width': colsResize, 'height': rowsResize, 'file_name':file_name, 'license':None, 'flicker_url': None, 'coco_url': None, 'data_captured': None, 'flicker_640_url': None}
         #new_annotations['images'].append(new_image)
 
-        new_annotations[imageCount] = []
+        new_annotations[imageCount-1] = []
         #Then add all transformed annotations. 
         for image_ann in image_anns:
             annotationCount = annotationCount + 1
@@ -283,7 +281,7 @@ def resize():
             #plt.imshow(resized_image)
             #plt.imshow(mask, alpha = 0.5)
             #plt.show()
-            #cv2.waitKey()
+    
             
 
             #print(new_bbox)
@@ -293,7 +291,7 @@ def resize():
 
     json_str = json.dumps(new_annotations, indent=7)
     #print("Json STR: " + str(json_str))
-    with open("C:/Users/alecr/OneDrive/Documents/GitHub/Trash_Annotations_Model_Training/data/resized/annotations.json", "w") as f:
+    with open("C:/Users/alecr/OneDrive/Documents/GitHub/Trash_Annotations_Model_Training/data/resized_17/annotations.json", "w") as f:
         f.write(json_str)
 
     
