@@ -28,7 +28,7 @@ transform = transforms.Compose([
         transforms.ToTensor()])
 
 
-image = cv2.imread('data/test/004.jpg')
+image = cv2.imread('data/test/007.jpg')
 
 
 orig_height, orig_width, _ = image.shape
@@ -69,12 +69,13 @@ model = test.get_model_instance_segmentation(7)
 
 #model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
 #model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = 256, dim_reduced=256, num_classes = 7)
-model.load_state_dict(torch.load('models/model_weights_10_10.pth', weights_only=True,  map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('models/model_weights10_10.pth', weights_only=True,  map_location=torch.device('cpu')))
 model.eval()
 
 resized_image = np.uint8(resized_image)
-class_names = ['BG', 'Aluminium foil', 'Can', 'Carton', 'Cup', 'Glass bottle', 'Metal bottle cap', 'Other', 'Paper', 'Plastic bottle', 'Plastic bottle cap', 'Plastic container', 'Plastic film', 'Plastic lid', 'Pop tab', 'Straw', 'Styrofoam piece', 'Wrapper']
+class_names_17 = ['BG', 'Aluminium foil', 'Can', 'Carton', 'Cup', 'Glass bottle', 'Metal bottle cap', 'Other', 'Paper', 'Plastic bottle', 'Plastic bottle cap', 'Plastic container', 'Plastic film', 'Plastic lid', 'Pop tab', 'Straw', 'Styrofoam piece', 'Wrapper']
 class_names = ['BG', 'Glass', 'Metal', 'Other', 'Paper', 'Plastic', 'Trash']
+
 
 resized_image_tensor = transform(resized_image)
 
@@ -87,4 +88,4 @@ scores = results['scores'].detach()
 
 colors = distinctipy.get_colors(len(class_names))
 
-visualize.visualize(resized_image, masks, boxes, labels, class_names,scores, colors, .5, 100)
+visualize.visualize(resized_image, masks, boxes, labels, class_names,scores, colors, .4, 100)

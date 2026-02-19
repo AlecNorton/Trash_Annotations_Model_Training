@@ -32,6 +32,16 @@ def get_transform(train):
     return T.Compose(transforms)
  
 def get_model_instance_segmentation(num_classes):
+    model = maskrcnn_resnet50_fpn_v2(weights = 'DEFAULT')
+
+    in_features_box = model.roi_heads.box_predictor.cls_score.in_features
+    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+
+    dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
+
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = num_classes)
+    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = in_features_mask, dim_reduced=dim_reduced, num_classes = num_classes)
+    '''
     model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
@@ -41,6 +51,7 @@ def get_model_instance_segmentation(num_classes):
             in_features_mask,
             hidden_layer,
             num_classes)
+    '''
     return model
 
 class TACODataset(torch.utils.data.Dataset):
