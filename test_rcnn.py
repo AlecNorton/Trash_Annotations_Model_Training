@@ -28,7 +28,7 @@ transform = transforms.Compose([
         transforms.ToTensor()])
 
 
-image = cv2.imread('data/test/007.jpg')
+image = cv2.imread('data/test/004.jpg')
 
 
 orig_height, orig_width, _ = image.shape
@@ -60,7 +60,7 @@ if(INTEL_SIZE[0] > resized_image.shape[1] or INTEL_SIZE[1] > resized_image.shape
 else:
     padding_flag = -1
 
-model = test.get_model_instance_segmentation(7)
+model = test.get_model_instance_segmentation(18)
 #model = maskrcnn_resnet50_fpn_v2(weights = 'DEFAULT')
 #in_features_box = model.roi_heads.box_predictor.cls_score.in_features
 #in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
@@ -69,7 +69,7 @@ model = test.get_model_instance_segmentation(7)
 
 #model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
 #model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = 256, dim_reduced=256, num_classes = 7)
-model.load_state_dict(torch.load('models/model_weights10_10.pth', weights_only=True,  map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('models/model_weights1710_10.pth', weights_only=True,  map_location=torch.device('cpu')))
 model.eval()
 
 resized_image = np.uint8(resized_image)
@@ -86,6 +86,9 @@ masks = results['masks'].detach().permute(0, 2, 3, 1)
 labels = np.int8(results['labels'].detach())
 scores = results['scores'].detach()
 
-colors = distinctipy.get_colors(len(class_names))
+colors = distinctipy.get_colors(len(class_names_17))
 
-visualize.visualize(resized_image, masks, boxes, labels, class_names,scores, colors, .4, 100)
+img, combinedMask, color_masks, new_labels = visualize.visualize(resized_image, masks, boxes, labels, class_names_17,scores, colors, 0, 100)
+cv2.namedWindow('img')
+cv2.imshow('img', img)
+cv2.waitKey(0)

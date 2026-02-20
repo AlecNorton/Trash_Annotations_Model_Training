@@ -32,9 +32,8 @@ def convert_masks(masks, labels, colors, boxes, size):
             continue
         copyFlag = 0
         for j in range(len(new_masks)):
-            print(j)
             score = iou_score(mask, new_masks[j])
-            if score > .9:
+            if score > .8:
                 copyFlag = 1
                 break
         if copyFlag ==1:
@@ -61,10 +60,11 @@ def visualize(image, masks, boxes, labels, class_names, scores, colors, score_th
     scores = scores[idx]
     labels = labels[idx]
     combinedMask, color_masks, new_labels, new_boxes = convert_masks(masks, labels, colors, boxes, size_threshold)
-    combinedMask = np.uint8(combinedMask*255)
-    image = cv2.addWeighted(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), .5, combinedMask, .5, 0)
-    for i in range(len(new_labels)):
-        color = tuple(i*255 for i in colors[new_labels[i]])
-        cv2.rectangle(image, (new_boxes[i][0], new_boxes[i][1]), (new_boxes[i][2], new_boxes[i][3]), color, 2)
-        cv2.putText(image, str(class_names[new_labels[i]]), (new_boxes[i][0], new_boxes[i][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2, cv2.LINE_AA)
-    return image, color_masks, new_labels
+    if(combinedMask is not None):
+        combinedMask = np.uint8(combinedMask*255)
+        image = cv2.addWeighted(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), .5, combinedMask, .5, 0)
+        for i in range(len(new_labels)):
+            color = tuple(i*255 for i in colors[new_labels[i]])
+            cv2.rectangle(image, (new_boxes[i][0], new_boxes[i][1]), (new_boxes[i][2], new_boxes[i][3]), color, 2)
+            cv2.putText(image, str(class_names[new_labels[i]]), (new_boxes[i][0], new_boxes[i][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2, cv2.LINE_AA)
+    return image, combinedMask, color_masks, new_labels
