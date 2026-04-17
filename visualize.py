@@ -38,8 +38,8 @@ def convert_masks(masks, labels, colors, boxes, size):
                 break
         if copyFlag ==1:
             continue
-                
-        color_masks.append(cv2.bitwise_and(color, color, mask = mask))
+        color_mask = cv2.bitwise_and(color, color, mask = mask)
+        color_masks.append(color_mask)
         new_labels.append(labels[i])
         new_masks.append(mask)
 
@@ -50,7 +50,7 @@ def convert_masks(masks, labels, colors, boxes, size):
             combinedMask = color_masks[-1]
         else:
             combinedMask = combinedMask + color_masks[-1]
-    return (combinedMask), color_masks, new_labels, new_boxes
+    return (combinedMask), color_masks, new_labels, new_boxes, new_masks
 
 def visualize(image, masks, boxes, labels, class_names, scores, colors, score_threshold = .5, size_threshold = 100):
     #print("COLORS", colors)
@@ -59,12 +59,13 @@ def visualize(image, masks, boxes, labels, class_names, scores, colors, score_th
     boxes = boxes[idx]
     scores = scores[idx]
     labels = labels[idx]
-    combinedMask, color_masks, new_labels, new_boxes = convert_masks(masks, labels, colors, boxes, size_threshold)
+    combinedMask, color_masks, new_labels, new_boxes, new_masks = convert_masks(masks, labels, colors, boxes, size_threshold)
     if(combinedMask is not None):
         combinedMask = np.uint8(combinedMask*255)
         image = cv2.addWeighted(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), .5, combinedMask, .5, 0)
         for i in range(len(new_labels)):
             color = tuple(i*255 for i in colors[new_labels[i]])
+            center = ( int((new_boxes[i][0] + new_boxes[i][2]) /2), int((new_boxes[i][1] + new_boxes[i][3]) /2))
             cv2.rectangle(image, (new_boxes[i][0], new_boxes[i][1]), (new_boxes[i][2], new_boxes[i][3]), color, 2)
-            cv2.putText(image, str(class_names[new_labels[i]]), (new_boxes[i][0], new_boxes[i][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2, cv2.LINE_AA)
-    return image, combinedMask, color_masks, new_labels
+            cv2.putText(image, str(class_names[new_labels[i]]), center, cv2.FONT_HERSHEY_SIMPLEX, .75, (255, 255, 255), 2, cv2.LINE_AA)
+    return image, combinedMask, color_masks, new_labels, new_boxes, new_masks

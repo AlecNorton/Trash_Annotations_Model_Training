@@ -3,6 +3,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision.io import read_image
 import torch
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
@@ -17,7 +19,6 @@ import json
 import os
 from torchvision.transforms import v2 as T
 from torch.utils.tensorboard import SummaryWriter
-import cv2
 INTEL_SIZE = (1280, 720)
 mean = torch.tensor([0.3825, 0.3623, 0.3205])
 std = torch.tensor([0.3010, 0.2854, 0.2710])
@@ -60,14 +61,14 @@ class TACODataset(torch.utils.data.Dataset):
         self.root = root
         self.transforms = transforms
         self.imgs = list(sorted(os.listdir(os.path.join(root, "images"))))
+        print("IMGS: ", self.imgs)
+        print("LEN: ", len(self.imgs))
         self.annotations = json.load(open(os.path.join(root, "annotations.json")))
 
     def __getitem__(self, idx):
         
         img_id = self.annotations[str(idx)][0]['image_id']
-        print("IMG ID: ", img_id)
         img_path = os.path.join(self.root, "images", self.imgs[img_id])
-        print("IMG_PATH: ", img_path)
         img = read_image(img_path)
         boxes = []
         labels = []
@@ -101,7 +102,10 @@ class TACODataset(torch.utils.data.Dataset):
         
         return img, target
     def __len__(self):
-        return len(self.imgs)
+        print("__LEN__: ", self.imgs)
+        variable = len(self.imgs)
+        print("VAR: ", variable)
+        return variable
 
 '''
 def target_transform(targets):
@@ -138,11 +142,12 @@ def custom_loader(batch):
 
 def class_distribution():
     dataset = TACODataset('data/test', get_transform(True))
-    t = transforms.ToPILImage()
 
-    #data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1, shuffle = False, num_workers = 4, collate_fn = custom_loader)
-    print(dataset.__getitem__(2))
+    print(dataset.__len__())
 
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1, shuffle = True, num_workers = 4, collate_fn = custom_loader)
+
+    
     '''
     count = 0
     class_labels = torch.zeros(18)
@@ -152,10 +157,10 @@ def class_distribution():
     for imgs, targets in data_loader:
         print(count)
         count +=1
-        plt.imshow(t(imgs))
-        plt.imshow(np.uint8(targets['masks'][0]))
-        plt.show()
-        cv2.waitKey()
+        #plt.imshow(t(imgs))
+        #plt.imshow(np.uint8(targets['masks'][0]))
+        #plt.show()
+        #cv2.waitKey()
         #print("Labels: ", targets['labels'])
         #print(targets)
         add = np.bincount(targets[0]['labels'])
@@ -165,7 +170,6 @@ def class_distribution():
         #print("Class_Labels: ", class_labels)
     print("Class labels,", class_labels)
     '''
-    
 
 def train(num_epochs, batch_size, data):
 
@@ -177,6 +181,9 @@ def train(num_epochs, batch_size, data):
     elif(data == '17'):
         path = 'data/resized_17'
         string = '17'
+    elif(data == 'finetune'):
+        path = 'data/test'
+        string = 'finetune'
     else:
         raise ValueError("Wrong data submission.")
 
@@ -184,29 +191,35 @@ def train(num_epochs, batch_size, data):
     dataset = TACODataset(path, get_transform(True))
     dataset_test = TACODataset(path, get_transform(False))
     indices = torch.randperm(len(dataset)).tolist()
-    dataset = torch.utils.data.Subset(dataset, indices[:-150])
+    dataset = torch.utils.data.Subset(dataset, indices[:-10])
     test_dataset = torch.utils.data.Subset(dataset_test, indices[-10:])
     print("Complete dataset load.")
     
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True, num_workers = 4, collate_fn = custom_loader)
-    data_loader_test = torch.utils.data.DataLoader(test_dataset, batch_size = 1, shuffle = False, collate_fn = custom_loader)
+    print("LEN: ", dataset.__len__())
+    assert(dataset.__len__() > 0)
+
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True, num_workers = 1, pin_memory=True, collate_fn = custom_loader)
+    data_loader_test = torch.utils.data.DataLoader(test_dataset, batch_size = 1, shuffle = False, pin_memory = True, collate_fn = custom_loader)
     print("Train data loader initialized.")
 
-    model = maskrcnn_resnet50_fpn_v2(weights = 'DEFAULT')
+    #model = maskrcnn_resnet50_fpn_v2(weights = 'DEFAULT')
 
-    in_features_box = model.roi_heads.box_predictor.cls_score.in_features
-    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+    #in_features_box = model.roi_heads.box_predictor.cls_score.in_features
+    #in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
 
-    dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
+    #dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
 
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
-    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = in_features_mask, dim_reduced = dim_reduced, num_classes = 7)
-
+    #model.roi_heads.box_predictor = FastRCNNPredictor(in_channels = in_features_box, num_classes = 7)
+    #model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels = in_features_mask, dim_reduced = dim_reduced, num_classes = 7)
+    
     print("Model loaded.")
-
+    model = get_model_instance_segmentation(7)
+    
+    model.load_state_dict(torch.load('models/model_weights10_10.pth', weights_only = True))
+    model.train()
     #Load parameters and optimizer. 
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr = 0.005, momentum = 0.9, weight_decay = 0.0005)
+    optimizer = torch.optim.SGD(params, lr = 0.0005, momentum = 0.9, weight_decay = 0.0005)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 3, gamma = 0.1)
 
     print("Optimizer loaded.")
@@ -257,6 +270,9 @@ def train(num_epochs, batch_size, data):
             writer.add_scalar("AR/" + str(iou_type)+"/.50-95_small", coco_eval.stats[9], epoch)
             writer.add_scalar("AR/" + str(iou_type)+"/.50-95_medium", coco_eval.stats[10], epoch)
             writer.add_scalar("AR/" + str(iou_type)+"/.50-95_large", coco_eval.stats[11], epoch)
+        
+        torch.cuda.empty_cache()
+
         '''
         data_iter = iter(data_loader)
         for images, targets in data_iter:
@@ -282,8 +298,10 @@ def train(num_epochs, batch_size, data):
         '''
     writer.flush()
     writer.close()
+    
+    torch.save(model.state_dict(), 'models/model_weights_finetune' + str(num_epochs) +'_'+str(batch_size)+'.pth')
+    
     '''
-    torch.save(model.state_dict(), 'models/model_weights' + str(num_epochs) +'_'+str(batch_size)+'.pth')
     plt.figure(1)
     plt.plot(loss)
     plt.ylabel('Losses')
@@ -345,6 +363,7 @@ if __name__ == '__main__':
     set_start_method('spawn')
     #p = Process(target = train(num_epochs ))
     #p = Process(target =train(num_epochs = int(args.EPOCHS), batch_size = int(args.BATCH), data = str(args.DATA)))
-    p = Process(target = class_distribution)
+    #p = Process(target = class_distribution)
+    p = Process(target = train(5, 10, 'finetune'))
     p.start()
     print("Finished.")
